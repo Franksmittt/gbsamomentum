@@ -70,28 +70,34 @@
 
     <!-- Main App View -->
     <div id="app-view" class="hidden min-h-screen flex-col p-4 md:p-6 lg:p-8 app-bg">
-        <!-- App content is the same as before -->
         <header class="mb-8 text-center">
             <h1 class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Creative Center</h1>
             <p class="text-gray-400 mt-2 max-w-2xl mx-auto">A collaborative space for innovation and strategy. Drag concepts to align our focus.</p>
         </header>
         <div class="mb-6 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div class="flex items-center space-x-4">
-                <div id="logged-in-user" class="text-sm text-white bg-indigo-600/50 border border-indigo-500 px-4 py-2 rounded-lg font-semibold text-center">
-                    Not Logged In
-                </div>
+                <div id="logged-in-user" class="text-sm text-white bg-indigo-600/50 border border-indigo-500 px-4 py-2 rounded-lg font-semibold text-center"></div>
                  <button id="logout-btn" class="text-sm text-gray-400 hover:text-white transition">Logout</button>
             </div>
              <div class="flex items-center space-x-4">
                 <button id="add-idea-btn" class="apex-button px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/50">
                     + New Concept
                 </button>
+                <button id="toggle-view-btn" class="apex-button px-5 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-600/50 min-w-[180px]">
+                    Synthesize Results
+                </button>
             </div>
         </div>
         <main id="kanban-board" class="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"></main>
+        <main id="results-view" class="hidden flex-1 flex flex-col items-center">
+            <div class="w-full max-w-5xl bg-gray-900/50 border border-gray-700 p-6 rounded-xl shadow-2xl">
+                <h2 class="text-3xl font-bold text-center mb-6 text-white">Ideation Synthesis</h2>
+                <div id="results-list" class="space-y-4"></div>
+            </div>
+        </main>
     </div>
     
-    <!-- Modals (shared between views but only used in app-view) -->
+    <!-- Modals -->
     <div id="idea-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-md hidden items-center justify-center p-4 z-40">
         <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl p-6 w-full max-w-md">
             <h3 id="idea-modal-title" class="text-xl font-bold mb-6 text-white">Propose a New Concept</h3>
@@ -130,78 +136,107 @@
     </div>
 
     <script type="module">
+        // --- Firebase SDK ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, addDoc, setDoc, getDoc, getDocs, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyArUx6BQJEPjUyUfprsp02i5VH2Dnr3IO8",
+          authDomain: "gbsamomentum.firebaseapp.com",
+          projectId: "gbsamomentum",
+          storageBucket: "gbsamomentum.appspot.com",
+          messagingSenderId: "408156301478",
+          appId: "1:408156301478:web:f21ed1dc1f071a8a5e2c67"
+        };
+
         // --- APP STATE & CONFIG ---
-        let currentUser;
+        let app, db, auth, currentUser;
         let ideas = [];
         let userVotes = {};
+        let sessionState = { status: 'voting' };
         const allowedUsers = ['Frank', 'Charmain', 'Drikus', 'Liam'];
         
         const teamColors = {
-            'Frank': 'border-blue-400',
-            'Charmain': 'border-pink-400',
-            'Drikus': 'border-green-400',
-            'Liam': 'border-yellow-400',
+            'Frank': 'border-blue-400', 'Charmain': 'border-pink-400',
+            'Drikus': 'border-green-400', 'Liam': 'border-yellow-400',
             'Default': 'border-gray-500'
         };
 
-        const initialMockIdeas = [
-             { id: 'mock1', title: 'Q4 Social Media Overhaul', description: 'Complete refresh of our visual identity on Instagram and LinkedIn to target a younger demographic.', author: 'Frank', suggestions: [{ author: 'Liam', text: 'Good idea. We should focus heavily on TikTok and Reels content.'}]},
-             { id: 'mock2', title: 'Interactive Client Workshops', description: 'Host quarterly online workshops to educate clients on new marketing trends and our services.', author: 'Charmain', suggestions: [] },
-             { id: 'mock3', title: 'AI-Powered Analytics Dashboard', description: 'Develop a new internal dashboard that uses AI to predict campaign performance.', author: 'Liam', suggestions: [{ author: 'Frank', text: 'This could be a huge value-add. Let\'s scope the technical requirements.' }, { author: 'Drikus', text: 'Can we integrate this with our current CRM?' }]}
-        ];
-
         // --- DOM Elements ---
-        const loginView = document.getElementById('login-view');
-        const appView = document.getElementById('app-view');
-        const loginForm = document.getElementById('login-form');
-        const nameInput = document.getElementById('name-input');
-        const loginError = document.getElementById('login-error');
-        const logoutBtn = document.getElementById('logout-btn');
-
-        const kanbanBoard = document.getElementById('kanban-board');
-        const loggedInUserEl = document.getElementById('logged-in-user');
-        
-        const addIdeaBtn = document.getElementById('add-idea-btn');
-        const ideaModal = document.getElementById('idea-modal');
-        const ideaModalTitle = document.getElementById('idea-modal-title');
-        const cancelIdeaBtn = document.getElementById('cancel-idea-btn');
-        const ideaForm = document.getElementById('idea-form');
-        const ideaIdInput = document.getElementById('idea-id');
-
-        const suggestionModal = document.getElementById('suggestion-modal');
-        const suggestionForm = document.getElementById('suggestion-form');
-        const cancelSuggestionBtn = document.getElementById('cancel-suggestion-btn');
-        const suggestionIdeaIdInput = document.getElementById('suggestion-idea-id');
+        const loginView = document.getElementById('login-view'), appView = document.getElementById('app-view');
+        const loginForm = document.getElementById('login-form'), nameInput = document.getElementById('name-input'), loginError = document.getElementById('login-error');
+        const logoutBtn = document.getElementById('logout-btn'), kanbanBoard = document.getElementById('kanban-board'), loggedInUserEl = document.getElementById('logged-in-user');
+        const addIdeaBtn = document.getElementById('add-idea-btn'), ideaModal = document.getElementById('idea-modal'), ideaModalTitle = document.getElementById('idea-modal-title');
+        const cancelIdeaBtn = document.getElementById('cancel-idea-btn'), ideaForm = document.getElementById('idea-form'), ideaIdInput = document.getElementById('idea-id');
+        const suggestionModal = document.getElementById('suggestion-modal'), suggestionForm = document.getElementById('suggestion-form'), cancelSuggestionBtn = document.getElementById('cancel-suggestion-btn');
+        const suggestionIdeaIdInput = document.getElementById('suggestion-idea-id'), toggleViewBtn = document.getElementById('toggle-view-btn'), resultsView = document.getElementById('results-view');
+        const resultsList = document.getElementById('results-list');
         
         const columns = [
-            { id: 'ideas', title: 'Concept Backlog', borderColor: '#4B5563' },
-            { id: 'good', title: 'High Conviction', borderColor: '#22C55E' },
-            { id: 'maybe', title: 'Further Discussion', borderColor: '#EAB308' },
-            { id: 'bad', title: 'Low Priority', borderColor: '#EF4444' },
+            { id: 'ideas', title: 'Concept Backlog', borderColor: '#4B5563' }, { id: 'good', title: 'High Conviction', borderColor: '#22C55E' },
+            { id: 'maybe', title: 'Further Discussion', borderColor: '#EAB308' }, { id: 'bad', title: 'Low Priority', borderColor: '#EF4444' },
         ];
 
         // --- INITIALIZATION & ROUTING ---
         function main() {
-            const savedUser = sessionStorage.getItem('creativeCenterUser');
-            if (savedUser && allowedUsers.includes(savedUser)) {
-                currentUser = savedUser;
-                initializeApp();
-            } else {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        const savedName = sessionStorage.getItem('creativeCenterUser');
+                        if (savedName) {
+                            currentUser = { uid: user.uid, name: savedName };
+                            initializeApp();
+                        } else {
+                            showLoginView();
+                        }
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                });
+            } catch (error) {
+                console.error("Firebase Init Error:", error);
                 showLoginView();
+                loginError.textContent = "Backend not configured.";
             }
         }
 
         function initializeApp() {
             loginView.classList.add('hidden');
-            appView.style.display = 'flex'; // Use flex to match the container
-            loggedInUserEl.innerHTML = `Logged in as <strong>${currentUser}</strong>`;
-            ideas = JSON.parse(JSON.stringify(initialMockIdeas)); // Reset mock data on each login for demo
-            renderVotingBoard();
+            appView.style.display = 'flex';
+            loggedInUserEl.innerHTML = `Logged in as <strong>${currentUser.name}</strong>`;
+            setupListeners();
         }
 
         function showLoginView() {
             appView.style.display = 'none';
             loginView.classList.remove('hidden');
+        }
+
+        // --- REAL-TIME LISTENERS ---
+        function setupListeners() {
+            const ideasColRef = collection(db, "ideas");
+            onSnapshot(ideasColRef, (snapshot) => {
+                ideas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateView();
+            });
+            
+            const userVotesDocRef = doc(db, `votes/${currentUser.uid}`);
+            onSnapshot(userVotesDocRef, (docSnap) => {
+                userVotes = docSnap.exists() ? docSnap.data() : {};
+                updateView();
+            });
+
+            const sessionDocRef = doc(db, 'session/state');
+            onSnapshot(sessionDocRef, (docSnap) => {
+                sessionState = docSnap.exists() ? docSnap.data() : { status: 'voting' };
+                updateView();
+            });
         }
 
         // --- LOGIN/LOGOUT LOGIC ---
@@ -212,12 +247,11 @@
 
             if (allowedUsers.includes(capitalizedName)) {
                 sessionStorage.setItem('creativeCenterUser', capitalizedName);
-                currentUser = capitalizedName;
+                currentUser = { uid: auth.currentUser.uid, name: capitalizedName };
                 loginError.textContent = '';
                 initializeApp();
             } else {
                 loginError.textContent = 'Invalid name. Please try again.';
-                nameInput.value = '';
             }
         });
 
@@ -228,6 +262,19 @@
         });
         
         // --- VIEW & RENDERING LOGIC ---
+        function updateView() {
+            if (!currentUser) return; // Prevent rendering if not logged in
+            if (sessionState.status === 'voting') {
+                kanbanBoard.style.display = 'grid'; resultsView.classList.add('hidden');
+                toggleViewBtn.textContent = 'Synthesize Results';
+                renderVotingBoard();
+            } else {
+                kanbanBoard.style.display = 'none'; resultsView.classList.remove('hidden');
+                toggleViewBtn.textContent = 'Return to Ideation';
+                renderResultsView();
+            }
+        }
+
         function renderVotingBoard() {
             kanbanBoard.innerHTML = '';
             columns.forEach(column => {
@@ -245,99 +292,101 @@
                 const targetContainer = document.querySelector(`.card-container[data-column-id="${targetColumnId}"]`);
                 if(targetContainer) {
                     const card = createIdeaCard(idea);
-                    card.style.animationDelay = `${index * 50}ms`;
                     targetContainer.appendChild(card);
                 }
             });
         }
+
+        async function renderResultsView() {
+            resultsList.innerHTML = '<p class="text-center text-gray-400">Synthesizing team consensus...</p>';
+            
+            const votesSnapshot = await getDocs(collection(db, "votes"));
+            const allVotes = {}; // { ideaId: { good: 1, maybe: 2, bad: 0 } }
+            
+            votesSnapshot.forEach(doc => {
+                const userVoteData = doc.data();
+                Object.entries(userVoteData).forEach(([ideaId, vote]) => {
+                    if (!allVotes[ideaId]) allVotes[ideaId] = { good: 0, maybe: 0, bad: 0 };
+                    if (vote !== 'ideas' && allVotes[ideaId][vote] !== undefined) allVotes[ideaId][vote]++;
+                });
+            });
+
+            const results = ideas.map(idea => {
+                const votes = allVotes[idea.id] || { good: 0, maybe: 0, bad: 0 };
+                const score = (votes.good * 2) + (votes.bad * -1);
+                const totalVotes = votes.good + votes.maybe + votes.bad;
+                return { ...idea, votes, score, totalVotes };
+            }).sort((a, b) => b.score - a.score);
+            
+            resultsList.innerHTML = '';
+            results.forEach(result => resultsList.appendChild(createIdeaCard(result, 'results')));
+        }
         
-        function createIdeaCard(ideaData) {
+        function createIdeaCard(ideaData, viewType = 'voting') {
             const card = document.createElement('div');
             card.id = ideaData.id;
             const authorColorClass = teamColors[ideaData.author] || teamColors['Default'];
             
-            card.className = `idea-card bg-gray-900 p-4 rounded-lg shadow-md fade-in-up border-l-4 ${authorColorClass}`;
-            card.draggable = true;
-
-            let suggestionsHtml = '';
-            if (ideaData.suggestions && ideaData.suggestions.length > 0) {
-                suggestionsHtml = `
-                    <div class="mt-4 pt-3 border-t border-gray-700 space-y-3">
-                        ${ideaData.suggestions.map(sugg => `
-                            <div class="suggestion bg-gray-800/50 p-2 rounded-md">
-                                <p class="text-sm text-gray-300">${sugg.text}</p>
-                                <p class="text-xs text-right font-semibold text-indigo-400 mt-1">- ${sugg.author}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
+            if (viewType === 'voting') {
+                card.className = `idea-card bg-gray-900 p-4 rounded-lg shadow-md border-l-4 ${authorColorClass}`;
+                card.draggable = true;
+                let suggestionsHtml = '';
+                if (ideaData.suggestions && ideaData.suggestions.length > 0) {
+                    suggestionsHtml = `<div class="mt-4 pt-3 border-t border-gray-700 space-y-3">${ideaData.suggestions.map(sugg => `<div class="suggestion bg-gray-800/50 p-2 rounded-md"><p class="text-sm text-gray-300">${sugg.text}</p><p class="text-xs text-right font-semibold text-indigo-400 mt-1">- ${sugg.author}</p></div>`).join('')}</div>`;
+                }
+                let buttonsHtml = `<div class="flex items-center justify-end space-x-2 mt-4 pt-3 border-t border-gray-700"><button data-suggest-id="${ideaData.id}" class="suggest-btn text-xs font-semibold text-gray-400 hover:text-white transition">Suggest</button>`;
+                if (ideaData.author === currentUser.name) {
+                    buttonsHtml += `<button data-edit-id="${ideaData.id}" class="edit-btn text-xs font-semibold text-gray-400 hover:text-white transition">Edit</button>`;
+                }
+                buttonsHtml += `</div>`;
+                card.innerHTML = `<h3 class="font-bold text-white">${ideaData.title}</h3><p class="text-sm text-gray-400 mt-1">${ideaData.description}</p><div class="text-xs text-gray-500 font-semibold mt-3">Author: ${ideaData.author}</div>${suggestionsHtml}${buttonsHtml}`;
+                card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', e.target.closest('.idea-card').id); setTimeout(() => e.target.closest('.idea-card').classList.add('dragging'), 0); });
+                card.addEventListener('dragend', (e) => e.target.closest('.idea-card').classList.remove('dragging'));
+            } else { // Results View
+                 card.className = 'bg-gray-800 p-4 rounded-lg border border-gray-700 shadow-lg';
+                 let heatmapHtml = '';
+                 if (ideaData.totalVotes > 0) {
+                    const p = (v) => (v / ideaData.totalVotes) * 100;
+                    heatmapHtml = `<div class="w-full flex h-2 rounded-full overflow-hidden mt-3 bg-gray-700"><div style="width: ${p(ideaData.votes.good)}%; background-color: #22C55E;"></div><div style="width: ${p(ideaData.votes.maybe)}%; background-color: #EAB308;"></div><div style="width: ${p(ideaData.votes.bad)}%; background-color: #EF4444;"></div></div>`;
+                 }
+                 card.innerHTML = `<div class="flex justify-between items-start"><div><h3 class="font-bold text-lg text-white">${ideaData.title}</h3><p class="text-sm text-gray-400 mt-1 max-w-xl">${ideaData.description}</p></div><div class="text-right ml-4 flex-shrink-0"><div class="font-extrabold text-3xl text-indigo-400">${ideaData.score}</div><div class="text-xs text-gray-500 font-medium">CONVICTION SCORE</div></div></div>${heatmapHtml}<div class="flex justify-end items-center text-sm font-medium mt-3 text-gray-300 space-x-6 border-t border-gray-700 pt-3"><span>👍 ${ideaData.votes.good}</span><span>🤔 ${ideaData.votes.maybe}</span><span>👎 ${ideaData.votes.bad}</span></div>`;
             }
-
-            let buttonsHtml = `
-                <div class="flex items-center justify-end space-x-2 mt-4 pt-3 border-t border-gray-700">
-                    <button data-suggest-id="${ideaData.id}" class="suggest-btn text-xs font-semibold text-gray-400 hover:text-white transition">Suggest</button>
-            `;
-            if (ideaData.author === currentUser) {
-                buttonsHtml += `<button data-edit-id="${ideaData.id}" class="edit-btn text-xs font-semibold text-gray-400 hover:text-white transition">Edit</button>`;
-            }
-            buttonsHtml += `</div>`;
-            
-            card.innerHTML = `
-                <h3 class="font-bold text-white">${ideaData.title}</h3>
-                <p class="text-sm text-gray-400 mt-1">${ideaData.description}</p>
-                <div class="text-xs text-gray-500 font-semibold mt-3">Author: ${ideaData.author}</div>
-                ${suggestionsHtml}
-                ${buttonsHtml}
-            `;
-
-            card.addEventListener('dragstart', (e) => {
-                e.dataTransfer.setData('text/plain', e.target.closest('.idea-card').id);
-                setTimeout(() => e.target.closest('.idea-card').classList.add('dragging'), 0);
-            });
-            card.addEventListener('dragend', (e) => e.target.closest('.idea-card').classList.remove('dragging'));
-            
             return card;
         }
 
-        // --- DRAG & DROP LOGIC ---
+        // --- DATA & EVENT HANDLERS ---
         function addDragDropListeners(container) {
             container.addEventListener('dragover', (e) => { e.preventDefault(); container.classList.add('drag-over'); });
             container.addEventListener('dragleave', () => container.classList.remove('drag-over'));
             container.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                container.classList.remove('drag-over');
+                e.preventDefault(); container.classList.remove('drag-over');
                 const ideaId = e.dataTransfer.getData('text/plain');
                 const columnId = container.dataset.columnId;
                 if (ideaId && columnId) {
-                    userVotes[ideaId] = columnId;
-                    renderVotingBoard();
+                    const userVotesDocRef = doc(db, `votes/${currentUser.uid}`);
+                    await setDoc(userVotesDocRef, { [ideaId]: columnId }, { merge: true });
                 }
             });
         }
         
-        // --- EVENT HANDLERS ---
         appView.addEventListener('click', (e) => {
             if (e.target.matches('.edit-btn')) {
                 const ideaId = e.target.dataset.editId;
                 const ideaToEdit = ideas.find(idea => idea.id === ideaId);
-                if (ideaToEdit && ideaToEdit.author === currentUser) {
-                    ideaModalTitle.textContent = 'Edit Concept';
-                    ideaIdInput.value = ideaToEdit.id;
-                    document.getElementById('idea-title').value = ideaToEdit.title;
-                    document.getElementById('idea-description').value = ideaToEdit.description;
+                if (ideaToEdit && ideaToEdit.author === currentUser.name) {
+                    ideaModalTitle.textContent = 'Edit Concept'; ideaIdInput.value = ideaToEdit.id;
+                    document.getElementById('idea-title').value = ideaToEdit.title; document.getElementById('idea-description').value = ideaToEdit.description;
                     ideaModal.style.display = 'flex';
                 }
             }
             if (e.target.matches('.suggest-btn')) {
-                const ideaId = e.target.dataset.suggestId;
-                suggestionIdeaIdInput.value = ideaId;
+                suggestionIdeaIdInput.value = e.target.dataset.suggestId;
                 suggestionModal.style.display = 'flex';
             }
         });
         
         addIdeaBtn.addEventListener('click', () => {
-            ideaForm.reset();
-            ideaIdInput.value = '';
+            ideaForm.reset(); ideaIdInput.value = '';
             ideaModalTitle.textContent = 'Propose a New Concept';
             ideaModal.style.display = 'flex';
         });
@@ -352,40 +401,39 @@
             const id = ideaIdInput.value;
 
             if (id) {
+                const ideaRef = doc(db, 'ideas', id);
                 const idea = ideas.find(i => i.id === id);
-                if(idea && idea.author === currentUser) {
-                    idea.title = title;
-                    idea.description = description;
-                } else {
-                    console.error("Authorization Error: User does not have permission to edit this idea.");
+                if(idea && idea.author === currentUser.name) {
+                    await updateDoc(ideaRef, { title, description });
                 }
             } else {
-                const newIdea = {
-                    id: `mock${ideas.length + 1 + Math.random()}`,
-                    title, description, author: currentUser, suggestions: []
-                };
-                ideas.push(newIdea);
+                await addDoc(collection(db, 'ideas'), {
+                    title, description, author: currentUser.name, suggestions: [], createdAt: serverTimestamp()
+                });
             }
-            
-            renderVotingBoard();
             ideaModal.style.display = 'none';
         });
 
         cancelSuggestionBtn.addEventListener('click', () => suggestionModal.style.display = 'none');
         suggestionModal.addEventListener('click', (e) => { if(e.target === suggestionModal) suggestionModal.style.display = 'none'; });
 
-        suggestionForm.addEventListener('submit', (e) => {
+        suggestionForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const ideaId = suggestionIdeaIdInput.value;
             const text = document.getElementById('suggestion-text').value.trim();
-            const idea = ideas.find(i => i.id === ideaId);
-
-            if (idea && text) {
-                idea.suggestions.push({ author: currentUser, text });
-                renderVotingBoard();
+            if (ideaId && text) {
+                const ideaRef = doc(db, 'ideas', ideaId);
+                await updateDoc(ideaRef, {
+                    suggestions: arrayUnion({ author: currentUser.name, text })
+                });
                 suggestionForm.reset();
                 suggestionModal.style.display = 'none';
             }
+        });
+
+        toggleViewBtn.addEventListener('click', async () => {
+            const newStatus = sessionState.status === 'voting' ? 'results' : 'voting';
+            await setDoc(doc(db, 'session/state'), { status: newStatus });
         });
 
         // --- START THE APP ---
