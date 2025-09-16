@@ -16,7 +16,7 @@
         .app-bg {
             background-image: radial-gradient(circle at top, rgba(31, 41, 55, 0.5) 0%, rgba(17, 24, 39, 0) 40%);
         }
-        .kanban-column { transition: background-color 0.3s ease; }
+        .kanban-column { transition: background-color: 0.3s ease; }
         .idea-card {
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, background-color 0.2s ease;
             cursor: grab;
@@ -51,7 +51,6 @@
 </head>
 <body class="antialiased">
 
-    <!-- Login View -->
     <div id="login-view" class="min-h-screen flex flex-col items-center justify-center p-4 app-bg">
         <div class="w-full max-w-sm text-center">
             <h1 class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Creative Center</h1>
@@ -68,7 +67,6 @@
         </div>
     </div>
 
-    <!-- Main App View -->
     <div id="app-view" class="hidden min-h-screen flex-col p-4 md:p-6 lg:p-8 app-bg">
         <header class="mb-8 text-center">
             <h1 class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Creative Center</h1>
@@ -97,7 +95,6 @@
         </main>
     </div>
     
-    <!-- Modals -->
     <div id="idea-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-md hidden items-center justify-center p-4 z-40">
         <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl p-6 w-full max-w-md">
             <h3 id="idea-modal-title" class="text-xl font-bold mb-6 text-white">Propose a New Concept</h3>
@@ -137,18 +134,18 @@
 
     <script type="module">
         // --- Firebase SDK ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, addDoc, setDoc, getDoc, getDocs, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, addDoc, setDoc, getDoc, getDocs, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-firestore.js";
         
-        // --- Firebase Configuration ---
+        // --- CORRECTED Firebase Configuration ---
         const firebaseConfig = {
-          apiKey: "AIzaSyArUx6BQJEPjUyUfprsp02i5VH2Dnr3IO8",
-          authDomain: "gbsamomentum.firebaseapp.com",
-          projectId: "gbsamomentum",
-          storageBucket: "gbsamomentum.appspot.com",
-          messagingSenderId: "408156301478",
-          appId: "1:408156301478:web:f21ed1dc1f071a8a5e2c67"
+            apiKey: "AIzaSyArUx6BQJEPjUyUfprsp02i5VH2Dnr3IO8",
+            authDomain: "gbsamomentum.firebaseapp.com",
+            projectId: "gbsamomentum",
+            storageBucket: "gbsamomentum.firebasestorage.app",
+            messagingSenderId: "408156301478",
+            appId: "1:408156301478:web:f21ed1dc1f071a8a5e2c67"
         };
 
         // --- APP STATE & CONFIG ---
@@ -156,6 +153,7 @@
         let ideas = [];
         let userVotes = {};
         let sessionState = { status: 'voting' };
+        
         const allowedUsers = ['Frank', 'Charmain', 'Drikus', 'Liam'];
         
         const teamColors = {
@@ -191,7 +189,7 @@
                         const savedName = sessionStorage.getItem('creativeCenterUser');
                         if (savedName) {
                             currentUser = { uid: user.uid, name: savedName };
-                            initializeApp();
+                            initializeAppView();
                         } else {
                             showLoginView();
                         }
@@ -200,13 +198,13 @@
                     }
                 });
             } catch (error) {
-                console.error("Firebase Init Error:", error);
+                console.error("Firebase Initialization Error:", error);
                 showLoginView();
-                loginError.textContent = "Backend not configured.";
+                loginError.textContent = "Firebase is not configured correctly.";
             }
         }
 
-        function initializeApp() {
+        function initializeAppView() {
             loginView.classList.add('hidden');
             appView.style.display = 'flex';
             loggedInUserEl.innerHTML = `Logged in as <strong>${currentUser.name}</strong>`;
@@ -249,9 +247,9 @@
                 sessionStorage.setItem('creativeCenterUser', capitalizedName);
                 currentUser = { uid: auth.currentUser.uid, name: capitalizedName };
                 loginError.textContent = '';
-                initializeApp();
+                initializeAppView();
             } else {
-                loginError.textContent = 'Invalid name. Please try again.';
+                loginError.textContent = 'Access Denied. Please use your assigned team name.';
             }
         });
 
@@ -263,13 +261,16 @@
         
         // --- VIEW & RENDERING LOGIC ---
         function updateView() {
-            if (!currentUser) return; // Prevent rendering if not logged in
+            if (!currentUser) return;
+            
             if (sessionState.status === 'voting') {
-                kanbanBoard.style.display = 'grid'; resultsView.classList.add('hidden');
+                kanbanBoard.style.display = 'grid';
+                resultsView.classList.add('hidden');
                 toggleViewBtn.textContent = 'Synthesize Results';
                 renderVotingBoard();
             } else {
-                kanbanBoard.style.display = 'none'; resultsView.classList.remove('hidden');
+                kanbanBoard.style.display = 'none';
+                resultsView.classList.remove('hidden');
                 toggleViewBtn.textContent = 'Return to Ideation';
                 renderResultsView();
             }
@@ -286,7 +287,7 @@
                 kanbanBoard.appendChild(columnEl);
             });
 
-            ideas.forEach((idea, index) => {
+            ideas.forEach((idea) => {
                 const userVote = userVotes[idea.id];
                 const targetColumnId = userVote || 'ideas';
                 const targetContainer = document.querySelector(`.card-container[data-column-id="${targetColumnId}"]`);
@@ -301,13 +302,15 @@
             resultsList.innerHTML = '<p class="text-center text-gray-400">Synthesizing team consensus...</p>';
             
             const votesSnapshot = await getDocs(collection(db, "votes"));
-            const allVotes = {}; // { ideaId: { good: 1, maybe: 2, bad: 0 } }
+            const allVotes = {};
             
             votesSnapshot.forEach(doc => {
                 const userVoteData = doc.data();
                 Object.entries(userVoteData).forEach(([ideaId, vote]) => {
                     if (!allVotes[ideaId]) allVotes[ideaId] = { good: 0, maybe: 0, bad: 0 };
-                    if (vote !== 'ideas' && allVotes[ideaId][vote] !== undefined) allVotes[ideaId][vote]++;
+                    if (vote !== 'ideas' && allVotes[ideaId][vote] !== undefined) {
+                        allVotes[ideaId][vote]++;
+                    }
                 });
             });
 
@@ -319,7 +322,11 @@
             }).sort((a, b) => b.score - a.score);
             
             resultsList.innerHTML = '';
-            results.forEach(result => resultsList.appendChild(createIdeaCard(result, 'results')));
+            if (results.length === 0) {
+                resultsList.innerHTML = '<p class="text-center text-gray-400">No concepts have been voted on yet.</p>';
+            } else {
+                results.forEach(result => resultsList.appendChild(createIdeaCard(result, 'results')));
+            }
         }
         
         function createIdeaCard(ideaData, viewType = 'voting') {
@@ -342,12 +349,12 @@
                 card.innerHTML = `<h3 class="font-bold text-white">${ideaData.title}</h3><p class="text-sm text-gray-400 mt-1">${ideaData.description}</p><div class="text-xs text-gray-500 font-semibold mt-3">Author: ${ideaData.author}</div>${suggestionsHtml}${buttonsHtml}`;
                 card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', e.target.closest('.idea-card').id); setTimeout(() => e.target.closest('.idea-card').classList.add('dragging'), 0); });
                 card.addEventListener('dragend', (e) => e.target.closest('.idea-card').classList.remove('dragging'));
-            } else { // Results View
+            } else {
                  card.className = 'bg-gray-800 p-4 rounded-lg border border-gray-700 shadow-lg';
                  let heatmapHtml = '';
                  if (ideaData.totalVotes > 0) {
                     const p = (v) => (v / ideaData.totalVotes) * 100;
-                    heatmapHtml = `<div class="w-full flex h-2 rounded-full overflow-hidden mt-3 bg-gray-700"><div style="width: ${p(ideaData.votes.good)}%; background-color: #22C55E;"></div><div style="width: ${p(ideaData.votes.maybe)}%; background-color: #EAB308;"></div><div style="width: ${p(ideaData.votes.bad)}%; background-color: #EF4444;"></div></div>`;
+                    heatmapHtml = `<div class="w-full flex h-2 rounded-full overflow-hidden mt-3 bg-gray-700"><div style="width: ${p(ideaData.votes.good)}%;" class="bg-green-500"></div><div style="width: ${p(ideaData.votes.maybe)}%;" class="bg-yellow-500"></div><div style="width: ${p(ideaData.votes.bad)}%;" class="bg-red-500"></div></div>`;
                  }
                  card.innerHTML = `<div class="flex justify-between items-start"><div><h3 class="font-bold text-lg text-white">${ideaData.title}</h3><p class="text-sm text-gray-400 mt-1 max-w-xl">${ideaData.description}</p></div><div class="text-right ml-4 flex-shrink-0"><div class="font-extrabold text-3xl text-indigo-400">${ideaData.score}</div><div class="text-xs text-gray-500 font-medium">CONVICTION SCORE</div></div></div>${heatmapHtml}<div class="flex justify-end items-center text-sm font-medium mt-3 text-gray-300 space-x-6 border-t border-gray-700 pt-3"><span>👍 ${ideaData.votes.good}</span><span>🤔 ${ideaData.votes.maybe}</span><span>👎 ${ideaData.votes.bad}</span></div>`;
             }
@@ -441,4 +448,3 @@
     </script>
 </body>
 </html>
-
