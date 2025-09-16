@@ -22,7 +22,6 @@
         }
         .idea-card {
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out, background-color 0.2s ease;
-            border: 1px solid rgba(255, 255, 255, 0.1);
             cursor: grab;
         }
         .idea-card:hover {
@@ -61,6 +60,9 @@
         .fade-in-up {
             animation: fadeInUp 0.5s ease-out forwards;
         }
+        .suggestion {
+            border-left: 2px solid #4f46e5;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -69,15 +71,20 @@
         
         <!-- Header - Apex Collective: Storytelling & Focus -->
         <header class="mb-8 text-center">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Momentum Engine</h1>
-            <p class="text-gray-400 mt-2 max-w-2xl mx-auto">Where concepts are forged and consensus is built. Drag ideas to cast your vote.</p>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">Creative Center</h1>
+            <p class="text-gray-400 mt-2 max-w-2xl mx-auto">A collaborative space for innovation and strategy. Drag concepts to align our focus.</p>
         </header>
 
         <!-- Control Bar -->
         <div class="mb-6 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <!-- User Info: Integrated & Understated -->
-            <div id="user-info" class="text-sm text-gray-400 bg-gray-800/50 border border-gray-700 px-4 py-2 rounded-lg w-full md:w-auto text-center md:text-left">
-                Loading session...
+            <div class="flex items-center space-x-4">
+                <div id="user-info" class="text-sm text-gray-400 bg-gray-800/50 border border-gray-700 px-4 py-2 rounded-lg text-center">
+                    Loading session...
+                </div>
+                <div id="logged-in-user" class="text-sm text-white bg-indigo-600/50 border border-indigo-500 px-4 py-2 rounded-lg font-semibold text-center">
+                    Not Logged In
+                </div>
             </div>
              <div class="flex items-center space-x-4">
                 <button id="add-idea-btn" class="apex-button px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/50">
@@ -112,14 +119,15 @@
             </svg>
         </div>
 
-        <!-- Add Idea Modal - A Focused Creation Space -->
+        <!-- Add/Edit Idea Modal - A Focused Creation Space -->
         <div id="idea-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-md hidden items-center justify-center p-4 z-40">
             <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl p-6 w-full max-w-md" id="idea-modal-content">
-                <h3 class="text-xl font-bold mb-6 text-white">Propose a New Concept</h3>
+                <h3 id="idea-modal-title" class="text-xl font-bold mb-6 text-white">Propose a New Concept</h3>
                 <form id="idea-form">
+                    <input type="hidden" id="idea-id">
                     <div class="mb-4">
                         <label for="idea-title" class="block text-sm font-medium text-gray-300 mb-2">Concept Title</label>
-                        <input type="text" id="idea-title" required class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white" placeholder="e.g., 'Threads of Change' Campaign">
+                        <input type="text" id="idea-title" required class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white" placeholder="e.g., 'Interactive Client Onboarding' Campaign">
                     </div>
                     <div class="mb-6">
                         <label for="idea-description" class="block text-sm font-medium text-gray-300 mb-2">The Core Narrative</label>
@@ -132,14 +140,30 @@
                 </form>
             </div>
         </div>
+
+        <!-- Suggestion Modal -->
+        <div id="suggestion-modal" class="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-md hidden items-center justify-center p-4 z-40">
+            <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-2xl p-6 w-full max-w-md">
+                <h3 class="text-xl font-bold mb-6 text-white">Add a Suggestion</h3>
+                <form id="suggestion-form">
+                    <input type="hidden" id="suggestion-idea-id">
+                    <div class="mb-6">
+                        <label for="suggestion-text" class="block text-sm font-medium text-gray-300 mb-2">Your Insight</label>
+                        <textarea id="suggestion-text" rows="4" required class="w-full px-4 py-2 bg-gray-900 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white" placeholder="e.g., 'Great idea, but let's consider targeting this towards the B2B sector first...'"></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" id="cancel-suggestion-btn" class="apex-button px-4 py-2 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500">Cancel</button>
+                        <button type="submit" class="apex-button px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-500">Submit Suggestion</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
     </div>
 
     <!-- Firebase SDK -->
     <script type="module">
         // --- Firebase Configuration ---
-        // This is a placeholder configuration. To use the app with a real backend,
-        // create a free project at https://firebase.google.com/ and replace these
-        // values with your own project's web app credentials.
         const firebaseConfig = {
             apiKey: "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
             authDomain: "your-project-id.firebaseapp.com",
@@ -148,15 +172,37 @@
             messagingSenderId: "123456789012",
             appId: "1:123456789012:web:xxxxxxxxxxxxxxxxxxxxxx"
         };
-        
-        // Use a consistent App ID for local development
         const appId = 'local-dev-instance';
         const initialAuthToken = undefined;
-        // -------------------
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, addDoc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, collection, addDoc, setDoc, getDocs, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- MOCK DATA & APP STATE ---
+        let app, db, auth, userId, currentUser;
+        let ideas = [];
+        let userVotes = {};
+        let sessionState = { status: 'voting' };
+        
+        const teamColors = {
+            'Frank': 'border-blue-400',
+            'Charmain': 'border-pink-400',
+            'Drikus': 'border-green-400',
+            'Liam': 'border-yellow-400',
+            'Default': 'border-gray-500'
+        };
+
+        const initialMockIdeas = [
+            { id: 'mock1', title: 'Q4 Social Media Overhaul', description: 'Complete refresh of our visual identity on Instagram and LinkedIn to target a younger demographic.', author: 'Frank', suggestions: [
+                { author: 'Liam', text: 'Good idea. We should focus heavily on TikTok and Reels content.'}
+            ]},
+            { id: 'mock2', title: 'Interactive Client Workshops', description: 'Host quarterly online workshops to educate clients on new marketing trends and our services.', author: 'Charmain', suggestions: [] },
+            { id: 'mock3', title: 'AI-Powered Analytics Dashboard', description: 'Develop a new internal dashboard that uses AI to predict campaign performance and suggest optimizations.', author: 'Liam', suggestions: [
+                 { author: 'Frank', text: 'This could be a huge value-add. Let\'s scope the technical requirements.' },
+                 { author: 'Drikus', text: 'Can we integrate this with our current CRM?' }
+            ]}
+        ];
 
         // DOM Elements
         const kanbanBoard = document.getElementById('kanban-board');
@@ -164,116 +210,66 @@
         const resultsList = document.getElementById('results-list');
         const toggleViewBtn = document.getElementById('toggle-view-btn');
         const userInfoEl = document.getElementById('user-info');
+        const loggedInUserEl = document.getElementById('logged-in-user');
         const loader = document.getElementById('loader');
+        
         const addIdeaBtn = document.getElementById('add-idea-btn');
         const ideaModal = document.getElementById('idea-modal');
+        const ideaModalTitle = document.getElementById('idea-modal-title');
         const cancelIdeaBtn = document.getElementById('cancel-idea-btn');
         const ideaForm = document.getElementById('idea-form');
+        const ideaIdInput = document.getElementById('idea-id');
 
-        // App State
-        let app, db, auth, userId;
-        let ideas = [];
-        let userVotes = {};
-        let sessionState = { status: 'voting' };
+        const suggestionModal = document.getElementById('suggestion-modal');
+        const suggestionForm = document.getElementById('suggestion-form');
+        const cancelSuggestionBtn = document.getElementById('cancel-suggestion-btn');
+        const suggestionIdeaIdInput = document.getElementById('suggestion-idea-id');
         
-        // Apex Collective: Re-framing the narrative of ideation stages
         const columns = [
-            { id: 'ideas', title: 'Concept Backlog', borderColor: '#4B5563' }, // Gray
-            { id: 'good', title: 'High Conviction', borderColor: '#22C55E' },  // Green
-            { id: 'maybe', title: 'Further Discussion', borderColor: '#EAB308' },// Yellow
-            { id: 'bad', title: 'Low Priority', borderColor: '#EF4444' },    // Red
+            { id: 'ideas', title: 'Concept Backlog', borderColor: '#4B5563' },
+            { id: 'good', title: 'High Conviction', borderColor: '#22C55E' },
+            { id: 'maybe', title: 'Further Discussion', borderColor: '#EAB308' },
+            { id: 'bad', title: 'Low Priority', borderColor: '#EF4444' },
         ];
 
-        // --- FIREBASE INITIALIZATION ---
+        // --- INITIALIZATION ---
         async function init() {
+            currentUser = 'Frank'; // Change this to 'Charmain', 'Drikus', or 'Liam' to test
+            loggedInUserEl.innerHTML = `Logged in as <strong>${currentUser}</strong>`;
+
             try {
-                // Check if firebaseConfig has been filled out
                 if (firebaseConfig.apiKey.includes("XXXX")) {
-                    throw new Error("Firebase configuration is a placeholder. Please replace it with your own project credentials.");
+                    throw new Error("Firebase not configured. Running in local mode with mock data.");
                 }
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        userInfoEl.innerHTML = `<strong>Session ID:</strong> <span class="font-mono bg-gray-700 px-2 py-1 rounded">${userId}</span>`;
-                        await setupListeners();
-                    } else if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                });
+                // Firebase logic will go here
             } catch (error) {
-                console.error("Firebase Init Error:", error);
-                userInfoEl.innerHTML = `<strong>Error:</strong> Please add your Firebase project configuration to the script to enable backend functionality.`;
-                loader.classList.add('hidden');
-                renderVotingBoard(); // Render the board with no data for local viewing
-            }
-        }
-
-        // --- REAL-TIME LISTENERS ---
-        async function setupListeners() {
-            const sessionDocRef = doc(db, `artifacts/${appId}/public/data/kanban_session/state`);
-            onSnapshot(sessionDocRef, (docSnap) => {
-                sessionState = docSnap.exists() ? docSnap.data() : { status: 'voting' };
+                console.warn(error.message);
+                userInfoEl.textContent = "Local Mode";
+                ideas = initialMockIdeas;
                 updateView();
-            }, (error) => {
-                 console.error("Error listening to session state:", error);
-                 userInfoEl.innerHTML = `<strong>Connection Error:</strong> Could not listen to session state. Check Firestore rules.`;
-            });
-
-            const ideasColRef = collection(db, `artifacts/${appId}/public/data/ideas`);
-            onSnapshot(ideasColRef, (querySnapshot) => {
-                ideas = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                updateView();
-            }, (error) => {
-                 console.error("Error listening to ideas:", error);
-                 userInfoEl.innerHTML = `<strong>Connection Error:</strong> Could not listen to ideas. Check Firestore rules.`;
-            });
-            
-            if (userId) {
-                const userVotesDocRef = doc(db, `artifacts/${appId}/public/data/votes/${userId}`);
-                onSnapshot(userVotesDocRef, (docSnap) => {
-                    userVotes = docSnap.exists() ? docSnap.data().votes || {} : {};
-                    updateView();
-                }, (error) => {
-                    console.error("Error listening to user votes:", error);
-                });
             }
         }
         
         // --- VIEW & RENDERING LOGIC ---
         function updateView() {
-            // This function will now be called even if firebase fails, to render the empty board
-            if (loader) loader.classList.add('hidden');
-
+            loader.classList.add('hidden');
             if (sessionState.status === 'voting') {
                 kanbanBoard.classList.remove('hidden');
                 resultsView.classList.add('hidden');
-                toggleViewBtn.textContent = 'Synthesize Results';
-                toggleViewBtn.className = 'apex-button px-5 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-500 focus:outline-none focus:ring-4 focus:ring-green-500/50 min-w-[180px]';
                 renderVotingBoard();
             } else {
                 kanbanBoard.classList.add('hidden');
                 resultsView.classList.remove('hidden');
-                toggleViewBtn.textContent = 'Return to Ideation';
-                toggleViewBtn.className = 'apex-button px-5 py-2 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-600/50 min-w-[180px]';
                 renderResultsView();
             }
         }
 
         function renderVotingBoard() {
             kanbanBoard.innerHTML = '';
-            
             columns.forEach(column => {
                 const columnEl = document.createElement('div');
-                columnEl.id = column.id;
                 columnEl.className = `kanban-column flex flex-col bg-gray-800/50 border border-gray-700 rounded-lg shadow-lg p-4 h-full`;
                 columnEl.innerHTML = `<h2 class="text-lg font-bold text-white mb-4 pl-2 border-l-4" style="border-color: ${column.borderColor};">${column.title}</h2><div class="card-container flex-1 space-y-4 rounded-md p-1 -m-1 min-h-[200px]" data-column-id="${column.id}"></div>`;
-                
                 const cardContainer = columnEl.querySelector('.card-container');
                 addDragDropListeners(cardContainer);
                 kanbanBoard.appendChild(columnEl);
@@ -291,173 +287,144 @@
             });
         }
         
-        async function renderResultsView() {
-            resultsList.innerHTML = '<p class="text-center text-gray-400">Synthesizing team consensus...</p>';
-            
-            if (!db) { // Guard clause if firebase isn't initialized
-                 resultsList.innerHTML = '<p class="text-center text-gray-500">Backend not connected. Cannot show results.</p>';
-                 return;
-            }
-
-            const allVotes = await fetchAllVotes();
-            const results = ideas.map(idea => {
-                const votes = allVotes[idea.id] || { good: 0, maybe: 0, bad: 0 };
-                const score = (votes.good || 0) * 2 + (votes.bad || 0) * -1;
-                const totalVotes = votes.good + votes.maybe + votes.bad;
-                return { ...idea, votes, score, totalVotes };
-            });
-            
-            results.sort((a, b) => b.score - a.score);
-            
-            resultsList.innerHTML = '';
-            if(results.length === 0) {
-                 resultsList.innerHTML = '<p class="text-center text-gray-400">No concepts have been proposed yet.</p>';
-                 return;
-            }
-            results.forEach((result, index) => {
-                const card = createIdeaCard(result, 'results');
-                card.style.animationDelay = `${index * 75}ms`;
-                resultsList.appendChild(card);
-            });
+        function renderResultsView() {
+            resultsList.innerHTML = '<p class="text-center text-gray-400">Result synthesis is disabled in local mode.</p>';
         }
         
-        async function fetchAllVotes() {
-            const votesCollectionRef = collection(db, `artifacts/${appId}/public/data/votes`);
-            const querySnapshot = await getDocs(votesCollectionRef);
-            
-            const aggregatedVotes = {};
-            ideas.forEach(idea => {
-                aggregatedVotes[idea.id] = { good: 0, maybe: 0, bad: 0 };
-            });
-
-            querySnapshot.forEach(doc => {
-                const userVotesData = doc.data().votes;
-                if (userVotesData) {
-                    Object.entries(userVotesData).forEach(([ideaId, vote]) => {
-                        if (aggregatedVotes[ideaId] && vote !== 'ideas' && aggregatedVotes[ideaId][vote] !== undefined) {
-                            aggregatedVotes[ideaId][vote]++;
-                        }
-                    });
-                }
-            });
-            return aggregatedVotes;
-        }
-
-        function createIdeaCard(ideaData, viewType) {
+        function createIdeaCard(ideaData) {
             const card = document.createElement('div');
             card.id = ideaData.id;
+            const authorColorClass = teamColors[ideaData.author] || teamColors['Default'];
             
-            if (viewType === 'voting') {
-                card.className = 'idea-card bg-gray-900 p-4 rounded-lg shadow-md fade-in-up';
-                card.draggable = true;
-                card.innerHTML = `
-                    <h3 class="font-bold text-white">${ideaData.title}</h3>
-                    <p class="text-sm text-gray-400 mt-1">${ideaData.description}</p>
-                `;
-                card.addEventListener('dragstart', (e) => {
-                    if (!db) return;
-                    e.dataTransfer.setData('text/plain', e.target.id);
-                    setTimeout(() => e.target.classList.add('dragging'), 0);
-                });
-                card.addEventListener('dragend', (e) => {
-                    if (!db) return;
-                    e.target.classList.remove('dragging');
-                });
-            } else { // Results View Card
-                card.className = 'bg-gray-800 p-4 rounded-lg border border-gray-700 shadow-lg fade-in-up';
-                
-                let heatmapHtml = '';
-                const total = ideaData.totalVotes;
-                if (total > 0) {
-                    const goodPercent = (ideaData.votes.good / total) * 100;
-                    const maybePercent = (ideaData.votes.maybe / total) * 100;
-                    const badPercent = (ideaData.votes.bad / total) * 100;
-                    heatmapHtml = `
-                        <div class="w-full flex h-2 rounded-full overflow-hidden mt-3 bg-gray-700">
-                            <div style="width: ${goodPercent}%; background-color: #22C55E;"></div>
-                            <div style="width: ${maybePercent}%; background-color: #EAB308;"></div>
-                            <div style="width: ${badPercent}%; background-color: #EF4444;"></div>
-                        </div>
-                    `;
-                }
+            card.className = `idea-card bg-gray-900 p-4 rounded-lg shadow-md fade-in-up border-l-4 ${authorColorClass}`;
+            card.draggable = true;
 
-                card.innerHTML = `
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h3 class="font-bold text-lg text-white">${ideaData.title}</h3>
-                            <p class="text-sm text-gray-400 mt-1 max-w-xl">${ideaData.description}</p>
-                        </div>
-                        <div class="text-right ml-4 flex-shrink-0">
-                             <div class="font-extrabold text-3xl text-indigo-400">${ideaData.score}</div>
-                             <div class="text-xs text-gray-500 font-medium">CONVICTION SCORE</div>
-                        </div>
-                    </div>
-                    ${heatmapHtml}
-                    <div class="flex justify-end items-center text-sm font-medium mt-3 text-gray-300 space-x-6 border-t border-gray-700 pt-3">
-                        <span class="flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: #22C55E;"></span> High Conviction: <strong>${ideaData.votes.good}</strong></span>
-                        <span class="flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: #EAB308;"></span> Discussion: <strong>${ideaData.votes.maybe}</strong></span>
-                        <span class="flex items-center"><span class="w-3 h-3 rounded-full mr-2" style="background-color: #EF4444;"></span> Low Priority: <strong>${ideaData.votes.bad}</strong></span>
+            let suggestionsHtml = '';
+            if (ideaData.suggestions && ideaData.suggestions.length > 0) {
+                suggestionsHtml = `
+                    <div class="mt-4 pt-3 border-t border-gray-700 space-y-3">
+                        ${ideaData.suggestions.map(sugg => `
+                            <div class="suggestion bg-gray-800/50 p-2 rounded-md">
+                                <p class="text-sm text-gray-300">${sugg.text}</p>
+                                <p class="text-xs text-right font-semibold text-indigo-400 mt-1">- ${sugg.author}</p>
+                            </div>
+                        `).join('')}
                     </div>
                 `;
             }
+
+            let buttonsHtml = `
+                <div class="flex items-center justify-end space-x-2 mt-4 pt-3 border-t border-gray-700">
+                    <button data-suggest-id="${ideaData.id}" class="suggest-btn text-xs font-semibold text-gray-400 hover:text-white transition">Suggest</button>
+            `;
+            if (ideaData.author === currentUser) {
+                buttonsHtml += `<button data-edit-id="${ideaData.id}" class="edit-btn text-xs font-semibold text-gray-400 hover:text-white transition">Edit</button>`;
+            }
+            buttonsHtml += `</div>`;
+            
+            card.innerHTML = `
+                <h3 class="font-bold text-white">${ideaData.title}</h3>
+                <p class="text-sm text-gray-400 mt-1">${ideaData.description}</p>
+                <div class="text-xs text-gray-500 font-semibold mt-3">Author: ${ideaData.author}</div>
+                ${suggestionsHtml}
+                ${buttonsHtml}
+            `;
+
+            card.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('text/plain', e.target.closest('.idea-card').id);
+                setTimeout(() => e.target.closest('.idea-card').classList.add('dragging'), 0);
+            });
+            card.addEventListener('dragend', (e) => e.target.closest('.idea-card').classList.remove('dragging'));
+            
             return card;
         }
 
         // --- DRAG & DROP LOGIC ---
         function addDragDropListeners(container) {
-            container.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                if (db) container.classList.add('drag-over');
-            });
+            container.addEventListener('dragover', (e) => { e.preventDefault(); container.classList.add('drag-over'); });
             container.addEventListener('dragleave', () => container.classList.remove('drag-over'));
             container.addEventListener('drop', async (e) => {
                 e.preventDefault();
-                if (!db) return; // Don't allow drops if firebase isn't configured
                 container.classList.remove('drag-over');
                 const ideaId = e.dataTransfer.getData('text/plain');
                 const columnId = container.dataset.columnId;
-                
                 if (ideaId && columnId) {
                     userVotes[ideaId] = columnId;
-                    renderVotingBoard(); // Optimistic update for seamless feel
-                    
-                    const userVotesDocRef = doc(db, `artifacts/${appId}/public/data/votes/${userId}`);
-                    await setDoc(userVotesDocRef, { votes: userVotes }, { merge: true });
+                    renderVotingBoard();
                 }
             });
         }
         
         // --- EVENT HANDLERS ---
-        toggleViewBtn.addEventListener('click', async () => {
-            if (!db) return;
-            const newStatus = sessionState.status === 'voting' ? 'results' : 'voting';
-            const sessionDocRef = doc(db, `artifacts/${appId}/public/data/kanban_session/state`);
-            await setDoc(sessionDocRef, { status: newStatus }, { merge: true });
+        document.getElementById('app-container').addEventListener('click', (e) => {
+            if (e.target.matches('.edit-btn')) {
+                const ideaId = e.target.dataset.editId;
+                const ideaToEdit = ideas.find(idea => idea.id === ideaId);
+                if (ideaToEdit && ideaToEdit.author === currentUser) {
+                    ideaModalTitle.textContent = 'Edit Concept';
+                    ideaIdInput.value = ideaToEdit.id;
+                    document.getElementById('idea-title').value = ideaToEdit.title;
+                    document.getElementById('idea-description').value = ideaToEdit.description;
+                    ideaModal.style.display = 'flex';
+                }
+            }
+            if (e.target.matches('.suggest-btn')) {
+                const ideaId = e.target.dataset.suggestId;
+                suggestionIdeaIdInput.value = ideaId;
+                suggestionModal.style.display = 'flex';
+            }
         });
-
+        
         addIdeaBtn.addEventListener('click', () => {
             ideaForm.reset();
+            ideaIdInput.value = ''; // Ensure we are in "add" mode
+            ideaModalTitle.textContent = 'Propose a New Concept';
             ideaModal.style.display = 'flex';
         });
 
         cancelIdeaBtn.addEventListener('click', () => ideaModal.style.display = 'none');
-        ideaModal.addEventListener('click', (e) => {
-            if(e.target === ideaModal) ideaModal.style.display = 'none';
-        });
+        ideaModal.addEventListener('click', (e) => { if(e.target === ideaModal) ideaModal.style.display = 'none'; });
 
         ideaForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!db) { // Don't submit if firebase isn't configured
-                alert('Backend not connected. Cannot save new concept.');
-                return;
-            };
             const title = document.getElementById('idea-title').value.trim();
             const description = document.getElementById('idea-description').value.trim();
+            const id = ideaIdInput.value;
 
-            if (title && description) {
-                const ideasColRef = collection(db, `artifacts/${appId}/public/data/ideas`);
-                await addDoc(ideasColRef, { title, description });
-                ideaModal.style.display = 'none';
+            if (id) { // Editing existing idea
+                const idea = ideas.find(i => i.id === id);
+                if(idea && idea.author === currentUser) { // Authorization check
+                    idea.title = title;
+                    idea.description = description;
+                } else {
+                    console.error("Authorization Error: User does not have permission to edit this idea.");
+                }
+            } else { // Adding new idea
+                const newIdea = {
+                    id: `mock${ideas.length + 1}`,
+                    title, description, author: currentUser, suggestions: []
+                };
+                ideas.push(newIdea);
+            }
+            
+            updateView();
+            ideaModal.style.display = 'none';
+        });
+
+        cancelSuggestionBtn.addEventListener('click', () => suggestionModal.style.display = 'none');
+        suggestionModal.addEventListener('click', (e) => { if(e.target === suggestionModal) suggestionModal.style.display = 'none'; });
+
+        suggestionForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const ideaId = suggestionIdeaIdInput.value;
+            const text = document.getElementById('suggestion-text').value.trim();
+            const idea = ideas.find(i => i.id === ideaId);
+
+            if (idea && text) {
+                idea.suggestions.push({ author: currentUser, text });
+                updateView();
+                suggestionForm.reset();
+                suggestionModal.style.display = 'none';
             }
         });
 
